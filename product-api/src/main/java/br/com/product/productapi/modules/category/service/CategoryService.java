@@ -1,15 +1,19 @@
 package br.com.product.productapi.modules.category.service;
 
 
+import br.com.product.productapi.config.exception.SuccessResponse;
 import br.com.product.productapi.config.exception.ValidationException;
-import br.com.product.productapi.modules.category.controller.dto.CategoryRequest;
-import br.com.product.productapi.modules.category.controller.dto.CategoryResponse;
-import br.com.product.productapi.modules.category.controller.model.Category;
-import br.com.product.productapi.modules.category.controller.repository.CategoryRepository;
+import br.com.product.productapi.modules.category.dto.CategoryRequest;
 import br.com.product.productapi.modules.category.dto.CategoryResponse;
-import br.com.product.productapi.modules.supplier.model.Supplier;
+import br.com.product.productapi.modules.category.model.Category;
+import br.com.product.productapi.modules.category.repository.CategoryRepository;
+import br.com.product.productapi.modules.product.model.repository.ProductRepository;
+import br.com.product.productapi.modules.product.model.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.springframework.util.ObjectUtils.isEmpty;
 
@@ -20,12 +24,47 @@ public class CategoryService {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @Autowired
+    private ProductService productService;
+
+    public CategoryResponse findByIdResponse(Integer id) {
+        return CategoryResponse.of(findById(id));
+    }
+
+    public List<CategoryResponse> findAll() {
+        return categoryRepository
+                .findAll()
+                .stream()
+                .map(CategoryResponse::of)
+                .collect(Collectors.toList());
+    }
+
+
+    public List<CategoryResponse> findByDescription(String description) {
+         return categoryRepository
+                 .findByDescriptionIgnoreCaseContaining(description)
+                 .stream()
+                 .map(CategoryResponse::of)
+                 .collect(Collectors.toList());
+    }
+
     public CategoryResponse save(CategoryRequest request) {
          var category = categoryRepository.save(Category.of(request));
          return CategoryResponse.of(category);
     }
 
+    public CategoryResponse update(CategoryRequest request,
+                                 Integer id) {
+        validateInformedId(id);
+        validateCategoryNameInformed(request);
+        var category = Category.of(request);
+        category.setId(id);
+        categoryRepository.save(category);
+        return CategoryResponse.of(category);
+    }
+
     public Category findById(Integer id){
+        validateInformedId(id);
         return categoryRepository
                 .findById(id)
                 .orElseThrow(() -> new ValidationException("There's no supplier for this id"));
@@ -34,6 +73,22 @@ public class CategoryService {
     private void validateCategoryNameInformed(CategoryRequest request) {
         if (isEmpty(request.getDescription())) {
            throw new ValidationException("The category description was not informed");
+        }
+    }
+
+    public SuccessResponse delete(Integer id) {
+        validateInformedId(id);
+        if (productService.existsByCategoryId(id)) {
+            throw new ValidationException("You cannot delete this category because it's already defined by a product.");
+        }
+        categoryRepository.deleteById(id);
+        return SuccessResponse.create("The category was deleted.");
+
+    }
+
+    private void validateInformedId(Integer id) {
+        if (isEmpty(id)) {
+            throw new ValidationException("The category ID was not informed");
         }
     }
 

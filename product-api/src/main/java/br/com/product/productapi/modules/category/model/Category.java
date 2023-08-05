@@ -1,7 +1,7 @@
 package br.com.product.productapi.modules.category.model;
 
 
-import br.com.product.productapi.modules.category.controller.dto.CategoryRequest;
+import br.com.product.productapi.modules.category.dto.CategoryRequest;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

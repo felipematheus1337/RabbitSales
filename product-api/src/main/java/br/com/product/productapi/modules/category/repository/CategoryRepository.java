@@ -1,9 +1,14 @@
-package br.com.product.productapi.modules.category.controller.repository;
+package br.com.product.productapi.modules.category.repository;
 
-import br.com.product.productapi.modules.category.controller.model.Category;
+
+import br.com.product.productapi.modules.category.model.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface CategoryRepository extends JpaRepository<Category, Integer> {
+
+    List<Category> findByDescriptionIgnoreCaseContaining(String description);
 }
