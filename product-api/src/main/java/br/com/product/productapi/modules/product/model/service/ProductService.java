@@ -5,11 +5,9 @@ import br.com.product.productapi.config.exception.SuccessResponse;
 import br.com.product.productapi.config.exception.ValidationException;
 import br.com.product.productapi.modules.category.service.CategoryService;
 import br.com.product.productapi.modules.product.model.Product;
-import br.com.product.productapi.modules.product.model.dto.ProductQuantityDTO;
-import br.com.product.productapi.modules.product.model.dto.ProductRequest;
-import br.com.product.productapi.modules.product.model.dto.ProductResponse;
-import br.com.product.productapi.modules.product.model.dto.ProductStockDTO;
+import br.com.product.productapi.modules.product.model.dto.*;
 import br.com.product.productapi.modules.product.model.repository.ProductRepository;
+import br.com.product.productapi.modules.sales.client.SalesClient;
 import br.com.product.productapi.modules.sales.dto.SalesConfirmationDTO;
 import br.com.product.productapi.modules.sales.enums.SalesStatus;
 import br.com.product.productapi.modules.sales.rabbitmq.SalesConfirmationSender;
@@ -21,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,6 +43,9 @@ public class ProductService {
 
     @Autowired
     private SalesConfirmationSender salesConfirmationSender;
+
+    @Autowired
+    private SalesClient salesClient;
 
     public ProductResponse save(ProductRequest request) {
         validateProductDataInformed(request);
@@ -157,23 +159,31 @@ public class ProductService {
             updateStock(productStockDTO);
         } catch (Exception e) {
             log.error("Erro while trying to update stock for message with error: {}", e.getMessage(), e);
-            var rejectedMessage = new SalesConfirmationDTO(productStockDTO.getSalesId(), SalesStatus.REJECTED);
+            var rejectedMessage = new SalesConfirmationDTO(productStockDTO.getSalesId(), SalesStatus.REJECTED, productStockDTO.getTransactionId());
             salesConfirmationSender.sendSalesConfirmationMessage(rejectedMessage);
 
         }
     }
 
+    @Transactional
     private void updateStock(ProductStockDTO productStockDTO) {
+        var productsForUpdate = new ArrayList<Product>();
+
         productStockDTO
                 .getProducts()
                 .forEach(salesProduct -> {
                     var existingProduct = findById(salesProduct.getProductId());
                     validateQuantityInStock(salesProduct, existingProduct);
                     existingProduct.updateStock(salesProduct.getQuantity());
-                    productRepository.save(existingProduct);
-                    var approvedMessage = new SalesConfirmationDTO(productStockDTO.getSalesId(), SalesStatus.APPROVED);
-                    salesConfirmationSender.sendSalesConfirmationMessage(approvedMessage);
+                    productsForUpdate.add(existingProduct);
                 });
+
+        if (!isEmpty(productsForUpdate)) {
+            productRepository.saveAll(productsForUpdate);
+            var approvedMessage = new SalesConfirmationDTO(productStockDTO.getSalesId(), SalesStatus.APPROVED);
+            salesConfirmationSender.sendSalesConfirmationMessage(approvedMessage);
+        }
+
     }
 
     @Transactional
@@ -196,6 +206,18 @@ public class ProductService {
         if (salesProduct.getQuantity() > existingProduct.getQuantityAvailable()) {
             throw new ValidationException(
                     String.format("The product %s is out of stock.", existingProduct.getId()));
+        }
+    }
+
+    public ProductSalesResponse findProductSales(Integer id) {
+        var product = findById(id);
+        try {
+            var sales = salesClient.findSalesByProductId(product.getId())
+                    .orElseThrow(() -> new ValidationException("The sale was not found for this product"));
+            return ProductSalesResponse.of(product, sales.getSalesId());
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw new ValidationException("There was an error trying to get the product.");
         }
     }
 }

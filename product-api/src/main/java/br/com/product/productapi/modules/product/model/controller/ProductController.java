@@ -7,6 +7,7 @@ import br.com.product.productapi.modules.product.model.Product;
 import br.com.product.productapi.modules.product.model.dto.ProductRequest;
 import br.com.product.productapi.modules.product.model.dto.ProductResponse;
 
+import br.com.product.productapi.modules.product.model.dto.ProductSalesResponse;
 import br.com.product.productapi.modules.product.model.service.ProductService;
 import br.com.product.productapi.modules.supplier.model.dto.SupplierResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,5 +60,11 @@ public class ProductController {
     @PutMapping("{id}")
     public ProductResponse update(@RequestBody ProductRequest request,@PathVariable Integer id) {
         return productService.update(request,id);
+    }
+
+    @GetMapping("{id}/sales")
+    public ProductSalesResponse findProductSales(@PathVariable Integer id) {
+        return productService.findProductSales(id);
+
     }
 }
